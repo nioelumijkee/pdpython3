@@ -37,35 +37,15 @@ featured.
 Compiling
 ---------
 
-System requirements: make, a C compiler, a Pd installation, and Python 2.7.
-
-Makefiles are provided for supported targets.  Each has a few variables at the
-top which may need to be customized for your particular system.  In particular,
-on Mac OS X the include path for the Pd API is usually a folder buried within
-the Pd application folder.  It is also possible to set different Python include
-flags to link against a non-system-supplied Python library.
-
-Building under Mac OS X:
-
-    make -f Makefile.OSX
+System requirements: make, a C compiler, a Pd installation, and Python.
 
 Building under Linux:
 
-    make -f Makefile.Linux
+    make
 
 
 Installation
 ------------
-
-There are three files to be installed:
-
-  1. the loadable module:  python.pd_Darwin or python.pd_linux
-  2. python-help.pd
-  3. python_help.py
-
-If compiled in-place, the correct install folder (e.g. install-OSX or
-install-Linux) can simply be added to the pd load path.  Or these files can be
-copied to an existing pd externals folder such as /usr/local/lib/pd-externals.
 
 
 Reference
