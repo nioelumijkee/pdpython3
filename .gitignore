@@ -42,3 +42,4 @@ install-Linux
 # Other cruft
 .DS_Store
 *~
+.deprecated/

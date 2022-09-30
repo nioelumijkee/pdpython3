@@ -2,7 +2,7 @@
 lib.name = pdpython
 PYTHON_CFLAGS  := `python-config  --cflags`
 PYTHON_LDFLAGS := `python-config  --ldflags`
-cflags = ${PYTHON_CFLAGS}
+cflags = ${PYTHON_CFLAGS} -shared
 ldlibs = ${PYTHON_LDFLAGS}
 class.sources = src/pdpython.c
 sources = 

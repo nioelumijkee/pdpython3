@@ -35,7 +35,8 @@
 ///	VERBOSE: everything else (e.g., free object, create object)
 const int DEBUG_ERROR = 1;
 const int DEBUG_WARNING = 1;
-const int DEBUG_VERBOSE = 1;
+/* const int DEBUG_VERBOSE = 1; */
+int DEBUG_VERBOSE=1;
 
 /****************************************************************/ 
 // Data structure to hold the state of a single Pd 'python' object.
@@ -63,7 +64,6 @@ static PyObject *t_atom_to_PyObject( t_atom *atom )
     case A_SYMBOL:
       // symbols are returned as strings
       return PyString_FromString( atom->a_w.w_symbol->s_name  );
-
     case A_NULL:
       Py_RETURN_NONE;
     
@@ -78,7 +78,8 @@ static PyObject *t_atom_to_PyObject( t_atom *atom )
       // A_GIMME
       // A_CANT
       // A_BLOB
-      if (DEBUG_WARNING) post( "Warning: type %d unsupported for conversion to Python.", atom->a_type );
+      if (DEBUG_WARNING) 
+	post( "Warning: type %d unsupported for conversion to Python.", atom->a_type );
       Py_RETURN_NONE;
     }
 }
@@ -108,7 +109,7 @@ static void PyObject_to_atom( PyObject *value, t_atom *atom )
   else if (PyLong_Check(value))    SETFLOAT( atom, (float) PyLong_AsLong( value ));
   else if (PyInt_Check(value))     SETFLOAT( atom, (float) PyLong_AsLong( value ));
   else if (PyString_Check(value))  SETSYMBOL( atom, gensym( PyString_AsString(value) ));
-  else SETSYMBOL( atom, gensym("error"));
+  else                             SETSYMBOL( atom, gensym("error"));
 }
 /****************************************************************/
 /// Create a newly allocated list of Pd atoms from a Python list.  The caller is
@@ -138,15 +139,13 @@ static void new_list_from_sequence( PyObject *seq, int *argc, t_atom **argv )
 static void emit_outlet_message( PyObject *value, t_outlet *x_outlet )
 {
   // Python True and False are translated to 1 and 0; this is more in keeping with Pd style
-  if (value == Py_True)           outlet_float( x_outlet, 1.0 );
+  if      (value == Py_True)      outlet_float( x_outlet, 1.0 );
   else if (value == Py_False)     outlet_float( x_outlet, 0.0 );
-
   // scalar numbers of various types come out as float
   else if ( PyFloat_Check(value))  outlet_float(  x_outlet, (float) PyFloat_AsDouble( value ));
   else if ( PyLong_Check(value))   outlet_float(  x_outlet, (float) PyLong_AsLong( value ));
   else if ( PyInt_Check(value))    outlet_float(  x_outlet, (float) PyLong_AsLong( value ));
   else if ( PyString_Check(value)) outlet_symbol( x_outlet, gensym( PyString_AsString(value) ));
-
   else if ( PyList_Check(value) )
     {
       // Create an atom array representing a 1D Python list.
@@ -263,7 +262,6 @@ static void pdpython_eval( t_pdpython *x, t_symbol *selector, int argcount, t_at
       Py_DECREF( value );
     }
 }
-
 /****************************************************************/
 /// Create an instance of a Pd 'python' object.
 ///
@@ -272,7 +270,6 @@ static void pdpython_eval( t_pdpython *x, t_symbol *selector, int argcount, t_at
 ///
 /// The Python function must return a Python callable object which can be called
 /// with messages.  It is typically a class allocator.
-
 static void *pdpython_new(t_symbol *selector, int argcount, t_atom *argvec)
 {
   t_pdpython *x = (t_pdpython *) pd_new(pdpython_class);
@@ -372,23 +369,36 @@ static void pdpython_free(t_pdpython *x)
 /// only means for Python to make calls back into Pd.
 ///
 /// The argument must be a single string.  Formatting can be handled in Python.
-
-static PyObject* pdgui_post( PyObject *self __attribute__((unused)), PyObject *args )
+static PyObject* pd_post( PyObject *self __attribute__((unused)), PyObject *args )
 {
   char *text;
   if( !PyArg_ParseTuple(args, "s", &text ))
     {
       if (DEBUG_WARNING)
 	post("Warning: unprintable object posted to the console from a python object.");
-      return NULL;
     }
   else
     {
       post( text );
-      Py_RETURN_NONE;
     }
+  Py_RETURN_NONE;
 }
-
+/****************************************************************/
+/// disable/enable verbose messages
+static PyObject* pd_verbose( PyObject *self __attribute__((unused)), PyObject *args )
+{
+  int v;
+  if( !PyArg_Parse(args, "(i)", &v ))
+    {
+      if (DEBUG_WARNING)
+	post("Warning: bad arguments: int");
+    }
+  else
+    {
+      DEBUG_VERBOSE=(v>0);
+    }
+  Py_RETURN_NONE;
+}
 /****************************************************************/
 /// Open Pd array
 static int pd_open_array(t_symbol *s_arr,  // name
@@ -449,7 +459,7 @@ static void validate_ssl(int size, // length array
 }
 
 /// Open Pd array and return python list
-static PyObject* pdarray2list( PyObject *self __attribute__((unused)), PyObject *args )
+static PyObject* pd_array_to_list( PyObject *self __attribute__((unused)), PyObject *args )
 {
   int start;
   int len;
@@ -496,23 +506,24 @@ static PyObject* pdarray2list( PyObject *self __attribute__((unused)), PyObject 
 }
 
 /****************************************************************/
-/// Define the pdgui module for C callbacks from Python to the Pd system.
-static PyMethodDef pdgui_methods[] = {
-  { "post", pdgui_post, METH_VARARGS, "Print a string to the Pd console." },
-  { "pdarray2list", pdarray2list, METH_VARARGS, "Open Pd array" },
-  { NULL, NULL, 0, NULL }
+/// Define the pd module for C callbacks from Python to the Pd system.
+static PyMethodDef pd_methods[] = {
+  { "post",           pd_post,           METH_VARARGS, "Print a string to the Pd console." },
+  { "verbose",        pd_verbose,        METH_VARARGS, "Print a verbose messages." },
+  { "pdarray2list",   pd_array_to_list,  METH_VARARGS, "Open Pd array" },
+  { NULL,             NULL,              0,            NULL }
 };
 
 /****************************************************************/
 /// Initialization entry point for the Pd 'python' external.  This is
 /// automatically called by Pd after loading the dynamic module to initialize
 /// the class interface.
-void python_setup(void)
+void pdpython_setup(void)
 {
   // specify "A_GIMME" as creation argument for both the creation
   // routine and the method (callback) for the "eval" message.
 
-  pdpython_class = class_new( gensym("python"),              // t_symbol *name
+  pdpython_class = class_new( gensym("pdpython"),              // t_symbol *name
 			      (t_newmethod) pdpython_new,    // t_newmethod newmethod
 			      (t_method) pdpython_free,      // t_method freemethod
 			      sizeof(t_pdpython),            // size_t size
@@ -532,7 +543,7 @@ void python_setup(void)
   PySys_SetArgv( 0, &arg0 );
 
   // make the internal pdgui wrapper module available for Python->C callbacks
-  if (Py_InitModule("pdgui", pdgui_methods ) == NULL)
+  if (Py_InitModule("pd", pd_methods ) == NULL)
     {
       if (DEBUG_ERROR) post("Error: unable to create the pdgui module.");
     }

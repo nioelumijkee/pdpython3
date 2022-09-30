@@ -1,0 +1,152 @@
+#N canvas 632 16 621 712 10;
+#X obj 16 199 bng 15 250 50 0 empty empty empty 17 7 0 10 #fcfcfc #000000
+#000000;
+#X obj 50 458 metro 1000;
+#X obj 60 428 bng 15 250 50 0 empty empty empty 17 7 0 10 #fcfcfc #000000
+#000000;
+#X msg 50 399 stop;
+#X floatatom 65 284 5 0 0 0 - - - 0;
+#X msg 125 199 1 2 3;
+#X symbolatom 255 215 10 0 0 0 - - - 0;
+#X msg 471 286 goto home;
+#X obj 255 193 bng 15 250 50 0 empty empty empty 17 7 0 10 #fcfcfc
+#000000 #000000;
+#X msg 456 232 moveto 1 2 3;
+#X obj 19 399 vsl 15 50 0 50 0 0 empty empty empty 0 -9 0 10 #fcfcfc
+#000000 #000000 0 1;
+#X msg 446 199 blah;
+#X msg 213 479 list symbol;
+#X msg 269 242 symbol symbol;
+#X msg 141 228 list 1 2 3;
+#X obj 82 329 s msg-to-python;
+#X obj 19 499 s msg-to-python;
+#X obj 478 327 s msg-to-python;
+#X text 199 373 quirky cases;
+#X obj 304 329 s msg-to-python;
+#X msg 157 256 list blah foo;
+#X msg 160 396 list;
+#X msg 177 422 symbol;
+#X msg 195 451 float;
+#X msg 51 257 float 6;
+#X msg 35 228 6;
+#X msg 283 268 symbol foo;
+#X msg 229 504 list foo;
+#X msg 172 284 list symbol foo;
+#X text 13 182 bang;
+#X text 35 210 float;
+#X text 123 176 list;
+#X obj 235 530 s msg-to-python;
+#X text 193 395 empty list;
+#X text 222 421 null symbol;
+#X text 235 451 implicit zero;
+#X msg 297 481 foo;
+#X obj 297 504 pack s;
+#X symbolatom 365 244 10 0 0 0 - - - 0;
+#X msg 365 218 list bar;
+#X obj 364 298 unpack s;
+#X msg 364 273 bar;
+#X text 323 478 improper lists;
+#X msg 414 415 tuple;
+#X obj 414 438 s msg-to-python;
+#X obj 8 8 cnv 15 600 130 empty empty python 20 12 0 14 #c4fcfc #404040
+0;
+#X text 254 173 symbols;
+#X text 89 11 External for embedding Python programs within Pd.;
+#X text 253 562 Python objects have two required creation arguments:
+module_name class_name;
+#X text 251 598 Additional creation arguments are passed to the class
+initializer function.;
+#X text 251 632 This object represents an instance of the PyHelpClass
+found in the python_help.py file.;
+#X obj 189 329 s msg-to-python;
+#X text 16 374 typical Pd messages;
+#X obj 20 576 r msg-to-python;
+#X text 400 380 Python tuples are returned;
+#X text 400 390 as multiple messages.;
+#X text 251 664 The Python load path is extended to include the current
+canvas path so that Python modules can be located in the same folder
+as a patch.;
+#X text 90 59 Most of the output of this patch appears in the console
+window. It demonstrates how Pd types appear to Python and shows some
+of the quirks of the Pd type system.;
+#X text 89 104 This is best understood by also examining the Python
+code in python_help.py \, usually installed next to python-help.pd
+;
+#X text 89 28 Copyright (c) 2014 \, Garth Zeglin. Provided under the
+terms of the 3-clause BSD license.;
+#X text 11 147 Lists and atomic types are received by specific methods
+in a Python class.;
+#X text 431 150 Messages with selectors;
+#X text 431 162 call methods by name.;
+#X obj 20 628 print output;
+#X obj 20 601 pdpython pdpython_help HelpClass;
+#X msg 463 257 moveto a b c;
+#N canvas 0 16 450 300 DEBUG_VERBOSE 0;
+#X obj 160 122 tgl 15 1 empty empty DEBUG_VERBOSE 17 7 0 10 #fcfcfc
+#000000 #000000 0 1;
+#X msg 160 142 verbose \$1;
+#X obj 160 163 s msg-to-python;
+#X connect 0 0 1 0;
+#X connect 1 0 2 0;
+#X restore 477 487 pd DEBUG_VERBOSE;
+#N canvas 741 85 529 355 DICT 0;
+#X obj 91 255 s msg-to-python;
+#X text 227 193 Return a list of all keys in the dictionary.;
+#X msg 158 192 dict_keys;
+#X msg 127 158 dict_get age;
+#X msg 113 131 dict_get name;
+#X msg 104 89 dict_set age 42;
+#X msg 91 58 dict_set name Hilbert;
+#X connect 2 0 0 0;
+#X connect 3 0 0 0;
+#X connect 4 0 0 0;
+#X connect 5 0 0 0;
+#X connect 6 0 0 0;
+#X restore 477 508 pd DICT;
+#N canvas 465 163 587 523 PD-ARRAYS 1;
+#X obj 57 284 s msg-to-python;
+#X msg 57 44 open_array array1 0 0;
+#N canvas 0 50 450 250 (subpatch) 0;
+#X array array1 10 float 2;
+#X coords 0 1 10 -1 200 80 1 0 0;
+#X restore 365 49 graph;
+#X msg 67 64 open_array array1 2 4;
+#X msg 86 94 open_array array1 -2 4534;
+#X connect 1 0 0 0;
+#X connect 3 0 0 0;
+#X connect 4 0 0 0;
+#X restore 477 528 pd PD-ARRAYS;
+#X connect 0 0 15 0;
+#X connect 1 0 16 0;
+#X connect 2 0 1 0;
+#X connect 3 0 1 0;
+#X connect 4 0 15 0;
+#X connect 5 0 51 0;
+#X connect 6 0 19 0;
+#X connect 7 0 17 0;
+#X connect 8 0 6 0;
+#X connect 9 0 17 0;
+#X connect 10 0 16 0;
+#X connect 11 0 17 0;
+#X connect 12 0 32 0;
+#X connect 13 0 19 0;
+#X connect 14 0 51 0;
+#X connect 20 0 51 0;
+#X connect 21 0 32 0;
+#X connect 22 0 32 0;
+#X connect 23 0 32 0;
+#X connect 24 0 15 0;
+#X connect 25 0 15 0;
+#X connect 26 0 19 0;
+#X connect 27 0 32 0;
+#X connect 28 0 51 0;
+#X connect 36 0 37 0;
+#X connect 37 0 32 0;
+#X connect 38 0 19 0;
+#X connect 39 0 38 0;
+#X connect 40 0 19 0;
+#X connect 41 0 40 0;
+#X connect 43 0 44 0;
+#X connect 53 0 64 0;
+#X connect 64 0 63 0;
+#X connect 65 0 17 0;
