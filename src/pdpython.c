@@ -28,8 +28,18 @@
 #include "m_pd.h"
 
 /****************************************************************/ 
-/// Data structure to hold the state of a single Pd 'python' object.
-/// Each object represents one instance of a Python class.
+// Select the level of debug (messages posted from python to
+// the pd parent window by assigning the each DEBUG variable:
+///	CRITICAL: errors in pdpython (e.g., not enough arguments)
+///	WARNING: warnings in pdpython (e.g., non existing method)
+///	VERBOSE: everything else (e.g., free object, create object)
+const int DEBUG_ERROR = 1;
+const int DEBUG_WARNING = 1;
+const int DEBUG_VERBOSE = 1;
+
+/****************************************************************/ 
+// Data structure to hold the state of a single Pd 'python' object.
+// Each object represents one instance of a Python class.
 typedef struct pdpython
 {
   t_object x_ob;           ///< standard object header
@@ -41,37 +51,36 @@ static t_class *pdpython_class;
 
 /****************************************************************/
 // Utility functions for object conversion.
-
 /// Attempt to convert a Pd object to a Python object.  The caller must take
 /// responsibility for releasing the Python object reference returned.
 static PyObject *t_atom_to_PyObject( t_atom *atom ) 
 {
-  switch( atom->a_type ) {
+  switch( atom->a_type )
+    {
+    case A_FLOAT:
+      return PyFloat_FromDouble( atom_getfloat(atom) );
 
-  case A_FLOAT:
-    return PyFloat_FromDouble( atom_getfloat(atom) );
+    case A_SYMBOL:
+      // symbols are returned as strings
+      return PyString_FromString( atom->a_w.w_symbol->s_name  );
 
-  case A_SYMBOL:
-    // symbols are returned as strings
-    return PyString_FromString( atom->a_w.w_symbol->s_name  );
-
-  case A_NULL:
-    Py_RETURN_NONE;
-
-  default:
-    // A_POINTER
-    // A_SEMI
-    // A_COMMA
-    // A_DEFFLOAT
-    // A_DEFSYM
-    // A_DOLLAR
-    // A_DOLLSYM
-    // A_GIMME
-    // A_CANT
-    // A_BLOB
-    post( "Warning: type %d unsupported for conversion to Python.", atom->a_type );
-    Py_RETURN_NONE;
-  }
+    case A_NULL:
+      Py_RETURN_NONE;
+    
+    default:
+      // A_POINTER
+      // A_SEMI
+      // A_COMMA
+      // A_DEFFLOAT
+      // A_DEFSYM
+      // A_DOLLAR
+      // A_DOLLSYM
+      // A_GIMME
+      // A_CANT
+      // A_BLOB
+      if (DEBUG_WARNING) post( "Warning: type %d unsupported for conversion to Python.", atom->a_type );
+      Py_RETURN_NONE;
+    }
 }
 
 /****************************************************************/
@@ -80,10 +89,11 @@ static PyObject *t_atom_list_to_PyObject_list( int argc, t_atom *argv )
 {
   PyObject *list = PyTuple_New( argc );
   int i;
-  for (i = 0; i < argc; i++) {
-    PyObject *value = t_atom_to_PyObject( &argv[i] );
-    PyTuple_SetItem( list, i, value); // pass the value reference to the tuple
-  }
+  for (i = 0; i < argc; i++)
+    {
+      PyObject *value = t_atom_to_PyObject( &argv[i] );
+      PyTuple_SetItem( list, i, value); // pass the value reference to the tuple
+    }
   return list;
 }
 
@@ -92,12 +102,12 @@ static PyObject *t_atom_list_to_PyObject_list( int argc, t_atom *argv )
 static void PyObject_to_atom( PyObject *value, t_atom *atom )
 {
   // Python True and False are translated to 1 and 0; this is more in keeping with Pd style
-  if (value == Py_True)            SETFLOAT( atom, 1.0 );
+  if      (value == Py_True)       SETFLOAT( atom, 1.0 );
   else if (value == Py_False)      SETFLOAT( atom, 0.0 );
-  else if ( PyFloat_Check(value))  SETFLOAT( atom, (float) PyFloat_AsDouble( value ));
-  else if ( PyLong_Check(value))   SETFLOAT( atom, (float) PyLong_AsLong( value ));
-  else if ( PyInt_Check(value))    SETFLOAT( atom, (float) PyLong_AsLong( value ));
-  else if ( PyString_Check(value)) SETSYMBOL( atom, gensym( PyString_AsString(value) ));
+  else if (PyFloat_Check(value))   SETFLOAT( atom, (float) PyFloat_AsDouble( value ));
+  else if (PyLong_Check(value))    SETFLOAT( atom, (float) PyLong_AsLong( value ));
+  else if (PyInt_Check(value))     SETFLOAT( atom, (float) PyLong_AsLong( value ));
+  else if (PyString_Check(value))  SETSYMBOL( atom, gensym( PyString_AsString(value) ));
   else SETSYMBOL( atom, gensym("error"));
 }
 /****************************************************************/
@@ -110,14 +120,16 @@ static void new_list_from_sequence( PyObject *seq, int *argc, t_atom **argv )
   Py_ssize_t len = 0;
   Py_ssize_t i;
 
-  if ( PyList_Check(seq)) {
-    len = PyList_Size(seq);
-    *argv = (t_atom *) malloc( len*sizeof(t_atom));
-    for (i = 0; i < len; i++) {
-      PyObject *elem = PyList_GetItem( seq, i );
-      PyObject_to_atom( elem, (*argv) + i );
+  if ( PyList_Check(seq))
+    {
+      len = PyList_Size(seq);
+      *argv = (t_atom *) malloc( len*sizeof(t_atom));
+      for (i = 0; i < len; i++)
+	{
+	  PyObject *elem = PyList_GetItem( seq, i );
+	  PyObject_to_atom( elem, (*argv) + i );
+	}
     }
-  }
   *argc = (int) len;
 }
 /****************************************************************/
@@ -135,23 +147,28 @@ static void emit_outlet_message( PyObject *value, t_outlet *x_outlet )
   else if ( PyInt_Check(value))    outlet_float(  x_outlet, (float) PyLong_AsLong( value ));
   else if ( PyString_Check(value)) outlet_symbol( x_outlet, gensym( PyString_AsString(value) ));
 
-  else if ( PyList_Check(value) ) {
-    // Create an atom array representing a 1D Python list.
-    t_atom *argv = NULL;
-    int argc = 0;
-    new_list_from_sequence( value, &argc, &argv );
+  else if ( PyList_Check(value) )
+    {
+      // Create an atom array representing a 1D Python list.
+      t_atom *argv = NULL;
+      int argc = 0;
+      new_list_from_sequence( value, &argc, &argv );
 
-    if (argc > 0) {
-      // Follow the Pd rules for interpreting lists.  If the first element is a symbol, then treat it as
-      // the 'selector', otherwise treat all elements as data.
-      if ( argv[0].a_type == A_SYMBOL) {
-	outlet_anything( x_outlet, atom_getsymbol( &argv[0] ), argc-1, argv+1);      
-      } else {
-	outlet_list( x_outlet, &s_list, argc, argv );
-      }
+      if (argc > 0)
+	{
+	  // Follow the Pd rules for interpreting lists.  If the first element is a symbol, then treat it as
+	  // the 'selector', otherwise treat all elements as data.
+	  if ( argv[0].a_type == A_SYMBOL)
+	    {
+	      outlet_anything( x_outlet, atom_getsymbol( &argv[0] ), argc-1, argv+1);      
+	    }
+	  else
+	    {
+	      outlet_list( x_outlet, &s_list, argc, argv );
+	    }
+	}
+      if (argv) free (argv);
     }
-    if (argv) free (argv);
-  }
 }
 
 /****************************************************************/
@@ -164,7 +181,7 @@ static void emit_outlet_message( PyObject *value, t_outlet *x_outlet )
 ///   list with selector  : obj.$selector(string)    example: [ goto 4 ] calls obj.goto( 4.0 )
 ///
 /// more examples:
-///  [ blah ]      is a lsit with a selector and null values, calls obj.blah()
+///  [ blah ]      is a list with a selector and null values, calls obj.blah()
 ///  [ goto home ] is a list with a selector and a symbol, calls obj.blah( "home" )
 ///
 /// a weird special case:
@@ -172,16 +189,20 @@ static void emit_outlet_message( PyObject *value, t_outlet *x_outlet )
 
 static void pdpython_eval( t_pdpython *x, t_symbol *selector, int argcount, t_atom *argvec )
 {
-  // post ("pdpython_eval called with %d args, selector %s\n", argcount, selector->s_name );
+  if (DEBUG_VERBOSE) 
+    post ("Verbose: pdpython_eval called with %d args, selector %s\n",
+	  argcount, selector->s_name );
 
   PyObject *func = NULL;
   PyObject *args = NULL;
   PyObject *value = NULL;    
 
-  if (x->py_object == NULL) {
-    post("Warning: message sent to uninitialized python object.");
-    return;
-  }
+  if (x->py_object == NULL)
+    {
+      if (DEBUG_WARNING) 
+	post("Warning: message sent to uninitialized python object.");
+      return;
+    }
 
   // Process the selector symbol.  This needs to be treated specially; some values
   // indicate atom messages and should not be included in the form.
@@ -195,36 +216,52 @@ static void pdpython_eval( t_pdpython *x, t_symbol *selector, int argcount, t_at
   func = PyObject_GetAttrString( x->py_object, selector->s_name );
   args = t_atom_list_to_PyObject_list( argcount, argvec );
   
-  if (!func) {
-    post("Warning: no Python function found for selector %s.", selector->s_name );
-  } else {
-    if (!PyCallable_Check( func )) {
-      post("Warning: Python attribute for selector %s is not callable.", selector->s_name );
-    } else {
-      value = PyObject_CallObject( func, args );
+  if (!func) 
+    {
+      if (DEBUG_WARNING) 
+	post("Warning: no Python function found for selector %s.", 
+	     selector->s_name );
     }
-    Py_DECREF( func );
-  }
+  else 
+    {
+      if (!PyCallable_Check( func )) 
+	{
+	  if (DEBUG_WARNING) 
+	    post("Warning: Python attribute for selector %s is not callable.",
+		 selector->s_name );
+	}
+      else 
+	{
+	  value = PyObject_CallObject( func, args );
+	}
+      Py_DECREF( func );
+    }
 
   if (args) Py_DECREF( args );
-
-  if (value == NULL) {
-    post("Warning: Python call for selector %s failed.", selector->s_name );
-
-  } else {
-    if (PyTuple_Check(value)) {
-      // A tuple generates a sequence of outlet messages, one per item.
-      int i, len = (int) PyTuple_Size( value );
-      for (i = 0; i < len; i++) {
-	PyObject *elem = PyTuple_GetItem( value, i );
-	emit_outlet_message( elem, x->x_outlet );
-      }
-    } else {
-      emit_outlet_message( value, x->x_outlet );
+  if (value == NULL) 
+    {
+      if (DEBUG_WARNING)
+	post("Warning: Python call for selector %s failed. Probably the python code is faulty in this method call (throwing exception).", selector->s_name );
     }
-
-    Py_DECREF( value );
-  }
+  else 
+    {
+      if (PyTuple_Check(value)) 
+	{
+	  // A tuple generates a sequence of outlet messages, one per item.
+	  int i, len = (int) PyTuple_Size( value );
+	  for (i = 0; i < len; i++) 
+	    {
+	      PyObject *elem = PyTuple_GetItem( value, i );
+	      emit_outlet_message( elem, x->x_outlet );
+	    }
+	} 
+      else
+	{
+	  emit_outlet_message( value, x->x_outlet );
+	}
+      
+      Py_DECREF( value );
+    }
 }
 
 /****************************************************************/
@@ -241,55 +278,75 @@ static void *pdpython_new(t_symbol *selector, int argcount, t_atom *argvec)
   t_pdpython *x = (t_pdpython *) pd_new(pdpython_class);
   x->py_object = NULL;
 
-  // post("pdpython_new called with selector %s and argcount %d", selector->s_name, argcount );
+  if (DEBUG_VERBOSE) 
+    post("Verbose: pdpython_new called with selector %s and argcount %d",
+	 selector->s_name, argcount );
 
-  if (argcount < 2) {
-    post("Error: python objects require a module and function specified in the creation arguments.");
-
-  } else {
-    // Add the current canvas path to the Python load path if not already
-    // present.  This will help the module import to find Python modules
-    // located in the same folder as the patch.
-    t_symbol *canvas_path = canvas_getcurrentdir();
-    PyObject* modulePath = PyString_FromString( canvas_path->s_name );
-    PyObject* sysPath    = PySys_GetObject( (char*) "path" ); // borrowed reference
-
-    if ( !PySequence_Contains( sysPath, modulePath )) {
-      post("Appending current canvas path to Python load path: %s", canvas_path->s_name );
-      PyList_Append(sysPath, modulePath );
+  if (argcount < 2) 
+    {
+      if (DEBUG_ERROR)
+	post("Error: python objects require a module and function specified in the creation arguments.");
     }
-    Py_DECREF( modulePath );
+  else 
+    {
+      // Add the current canvas path to the Python load path if not already
+      // present.  This will help the module import to find Python modules
+      // located in the same folder as the patch.
+      t_symbol *canvas_path = canvas_getcurrentdir();
+      PyObject* modulePath = PyString_FromString( canvas_path->s_name );
+      PyObject* sysPath    = PySys_GetObject( (char*) "path" ); // borrowed reference
 
-
-    // try loading the module
-    PyObject *module_name   = t_atom_to_PyObject( &argvec[0] );
-    PyObject *module        = PyImport_Import( module_name );
-    Py_DECREF( module_name );
-
-    if ( module == NULL ) {
-      post("Error: unable to import Python module %s.", argvec[0].a_w.w_symbol->s_name );
-
-    } else {
-      PyObject *func = PyObject_GetAttrString( module, argvec[1].a_w.w_symbol->s_name );
-
-      if ( func == NULL) {
-	post("Error: Python function %s not found.", argvec[1].a_w.w_symbol->s_name );
-
-      } else {
-	if (!PyCallable_Check( func )) {
-	  post("Error: Python attribute %s is not callable.", argvec[1].a_w.w_symbol->s_name );
-
-	} else {
-	  PyObject *args = t_atom_list_to_PyObject_list( argcount-2, argvec+2 );
-	  x->py_object   = PyObject_CallObject( func, args );
-	  Py_DECREF( args );
+      if ( !PySequence_Contains( sysPath, modulePath )) 
+	{
+	  if (DEBUG_VERBOSE)
+	    post("Verbose: Appending current canvas path to Python load path: %s",
+		 canvas_path->s_name );
+	  PyList_Append(sysPath, modulePath );
 	}
-	Py_DECREF( func );
-      }
-      Py_DECREF( module );
-    }
-  }
+      Py_DECREF( modulePath );
 
+      // try loading the module
+      PyObject *module_name   = t_atom_to_PyObject( &argvec[0] );
+      PyObject *module        = PyImport_Import( module_name );
+      Py_DECREF( module_name );
+
+      if ( module == NULL ) 
+	{
+	  if (DEBUG_ERROR)
+	    post("Error: unable to import Python module %s.",
+		 argvec[0].a_w.w_symbol->s_name );
+	  
+	}
+      else
+	{
+	  PyObject *func = PyObject_GetAttrString( module, argvec[1].a_w.w_symbol->s_name );
+
+	  if ( func == NULL)
+	    {
+	      if (DEBUG_ERROR)
+		post("Error: Python function %s not found.",
+		     argvec[1].a_w.w_symbol->s_name );
+	    }
+	  else
+	    {
+	      if (!PyCallable_Check( func ))
+		{
+		  if (DEBUG_ERROR)
+		    post("Error: Python attribute %s is not callable.",
+			 argvec[1].a_w.w_symbol->s_name );
+		}
+	      else
+		{
+		  PyObject *args = t_atom_list_to_PyObject_list( argcount-2, argvec+2 );
+		  x->py_object   = PyObject_CallObject( func, args );
+		  Py_DECREF( args );
+		}
+	      Py_DECREF( func );
+	    }
+	  Py_DECREF( module );
+	}
+    }
+  
   // create an outlet on which to return values
   x->x_outlet = outlet_new( &x->x_ob, NULL );
   return (void *)x;
@@ -298,13 +355,15 @@ static void *pdpython_new(t_symbol *selector, int argcount, t_atom *argvec)
 /// Release an instance of a Pd 'python' object.
 static void pdpython_free(t_pdpython *x)
 {
-  post("python freeing object");
-  if (x) {
-    outlet_free( x->x_outlet );
-    if (x->py_object) Py_DECREF( x->py_object );
-    x->x_outlet = NULL;
-    x->py_object = NULL;
-  }
+  if (DEBUG_VERBOSE)
+    post("Verbose: python freeing object");
+  if (x)
+    {
+      outlet_free( x->x_outlet );
+      if (x->py_object) Py_DECREF( x->py_object );
+      x->x_outlet = NULL;
+      x->py_object = NULL;
+    }
 }
 /****************************************************************/
 /// Define an internal 'pdgui' module with a post() method to allow Python
@@ -317,18 +376,130 @@ static void pdpython_free(t_pdpython *x)
 static PyObject* pdgui_post( PyObject *self __attribute__((unused)), PyObject *args )
 {
   char *text;
-  if( !PyArg_ParseTuple(args, "s", &text )) {
-    post("Warning: unprintable object posted to the console from a python object.");
-    return NULL;
-  } else {
-    post( text );
-    Py_RETURN_NONE;
-  }
+  if( !PyArg_ParseTuple(args, "s", &text ))
+    {
+      if (DEBUG_WARNING)
+	post("Warning: unprintable object posted to the console from a python object.");
+      return NULL;
+    }
+  else
+    {
+      post( text );
+      Py_RETURN_NONE;
+    }
 }
 
+/****************************************************************/
+/// Open Pd array
+static int pd_open_array(t_symbol *s_arr,  // name
+			 t_word **w_arr,   // word
+			 t_garray **g_arr) // garray
+{
+  int len;
+  t_word *i_w_arr;
+  t_garray *i_g_arr;
+  if (!(i_g_arr = (t_garray *)pd_findbyclass(s_arr, garray_class)))
+    {
+      post("%s: no such array", s_arr->s_name);
+      len = -1;
+    }
+  else if (!garray_getfloatwords(i_g_arr, &len, &i_w_arr))
+    {
+      post("%s: bad template", s_arr->s_name);
+      len = -1;
+    }
+  else
+    {
+      *w_arr = i_w_arr;
+      *g_arr = i_g_arr;
+    }
+  return (len);
+}
+
+/// validate start length array
+static void validate_ssl(int size, // length array
+			 int *start, // start index
+			 int *len) // length
+{
+  int end;
+  // start => 0 ... size-1
+  if (*start < 0)
+    {
+      *start = size + *start;
+      if (*start < 0) *start = 0;
+    }
+  else if (*start >= size)
+    {
+      *start = size - 1;
+    }
+  // end => 1 ... size
+  if (*len <= 0)
+    {
+      end = size + *len;
+      if (end < 0) end = 0;
+    }
+  else
+    {
+      end = *start + *len;
+      if (end > size) end = size;
+    }
+  // len
+  *len = end - *start;
+  if (*len < 1) *len = 0;
+}
+
+/// Open Pd array and return python list
+static PyObject* pdarray2list( PyObject *self __attribute__((unused)), PyObject *args )
+{
+  int start;
+  int len;
+  char *array_name;
+  if( !PyArg_Parse(args, "(sii)", &array_name, &start, &len ))
+    {
+      if (DEBUG_WARNING)
+	post("Warning: bad arguments: string int int");
+      Py_RETURN_NONE;
+    }
+  else
+    {
+      /* PyObject  *returnobj = NULL; */
+      t_word   *a_word;
+      t_garray *a_garray;
+      int       a_len;
+      t_symbol *s = gensym(array_name);
+      a_len = pd_open_array(s, &a_word, &a_garray);
+      if (a_len <= 0)
+	{
+	  if (DEBUG_WARNING)
+	    post("Warning: bad array size: %d", a_len);
+	  Py_RETURN_NONE;
+	}
+
+
+      validate_ssl(a_len, &start, &len);
+      post("%s : %d : %d %d",s->s_name, a_len, start, len);
+
+
+      PyObject *list = PyList_New( len );
+      int i;
+      for (i = 0; i < len; i++)
+	{
+	  PyObject *value = PyFloat_FromDouble( a_word[i+start].w_float );
+	  PyList_SetItem( list, i, value); // pass the value reference to the tuple
+	}
+      return list;
+
+
+      /* Py_RETURN_NONE; */
+      /* return returnobj; */
+    }
+}
+
+/****************************************************************/
 /// Define the pdgui module for C callbacks from Python to the Pd system.
 static PyMethodDef pdgui_methods[] = {
   { "post", pdgui_post, METH_VARARGS, "Print a string to the Pd console." },
+  { "pdarray2list", pdarray2list, METH_VARARGS, "Open Pd array" },
   { NULL, NULL, 0, NULL }
 };
 
@@ -361,9 +532,10 @@ void python_setup(void)
   PySys_SetArgv( 0, &arg0 );
 
   // make the internal pdgui wrapper module available for Python->C callbacks
-  if (Py_InitModule("pdgui", pdgui_methods ) == NULL) {
-    post("Error: unable to create the pdgui module.");
- }
+  if (Py_InitModule("pdgui", pdgui_methods ) == NULL)
+    {
+      if (DEBUG_ERROR) post("Error: unable to create the pdgui module.");
+    }
 }
 /****************************************************************/
 
