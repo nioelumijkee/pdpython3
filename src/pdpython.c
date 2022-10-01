@@ -426,10 +426,10 @@ static int pd_open_array(t_symbol *s_arr,  // name
   return (len);
 }
 
-/// validate start length array
+/// validate start length operation with length array
 static void validate_ssl(int size, // length array
-			 int *start, // start index
-			 int *len) // length
+			 int *start, // start index operation
+			 int *len) // length index operation
 {
   int end;
   // start => 0 ... size-1
@@ -458,8 +458,8 @@ static void validate_ssl(int size, // length array
   if (*len < 1) *len = 0;
 }
 
-/// Open Pd array and return python list
-static PyObject* pd_array_to_list( PyObject *self __attribute__((unused)), PyObject *args )
+/// Open Pd array and get elements
+static PyObject* pd_array_get( PyObject *self __attribute__((unused)), PyObject *args )
 {
   int start;
   int len;
@@ -472,7 +472,112 @@ static PyObject* pd_array_to_list( PyObject *self __attribute__((unused)), PyObj
     }
   else
     {
-      /* PyObject  *returnobj = NULL; */
+      t_word   *a_word;
+      t_garray *a_garray;
+      int       a_len;
+      t_symbol *s = gensym(array_name);
+      a_len = pd_open_array(s, &a_word, &a_garray);
+      if (a_len <= 0)
+	{
+	  if (DEBUG_WARNING)
+	    post("Warning: bad array size: %d", a_len);
+	  PyObject *list = PyList_New( 0 );
+	  return list;
+	}
+      else
+	{
+	  validate_ssl(a_len, &start, &len);
+	  if (DEBUG_VERBOSE)
+	    post("%s : %d : %d %d",s->s_name, a_len, start, len);
+	  PyObject *list = PyList_New( len );
+	  int i;
+	  for (i = 0; i < len; i++)
+	    {
+	      PyObject *value = PyFloat_FromDouble( a_word[i+start].w_float );
+	      PyList_SetItem( list, i, value);
+	    }
+	  return list;
+	}
+    }
+}
+
+/// Open Pd array and set elements
+static PyObject* pd_array_set( PyObject *self __attribute__((unused)), PyObject *args )
+{
+  int start;
+  int len;
+  char *array_name;
+  PyObject  *in_list;
+  if( !PyArg_Parse(args, "(Osii)", &in_list, &array_name, &start, &len ))
+    {
+      if (DEBUG_WARNING)
+	post("Warning: bad arguments: string int int list");
+      Py_RETURN_NONE;
+    }
+  else
+    {
+      if (PyList_Check(in_list) == 1)
+	{
+	  t_word   *a_word;
+	  t_garray *a_garray;
+	  int       a_len;
+	  t_symbol *s = gensym(array_name);
+	  a_len = pd_open_array(s, &a_word, &a_garray);
+	  if (a_len <= 0)
+	    {
+	      if (DEBUG_WARNING)
+		post("Warning: bad array size: %d", a_len);
+	      Py_RETURN_NONE;
+	    }
+	  else
+	    {
+	      validate_ssl(a_len, &start, &len);
+	      if (DEBUG_VERBOSE)
+		post("%s : %d : %d %d",s->s_name, a_len, start, len);
+	      int i;
+	      for (i = 0; i < len; i++)
+		{
+		  PyObject *value = PyList_GetItem(in_list, i);
+		  if      (value == Py_True)
+		    a_word[i+start].w_float = 1.0;
+		  else if (value == Py_False)
+		    a_word[i+start].w_float = 0.0;
+		  else if ( PyFloat_Check(value))
+		    a_word[i+start].w_float = (float) PyFloat_AsDouble( value );
+		  else if ( PyLong_Check(value))
+		    a_word[i+start].w_float = (float) PyLong_AsLong( value );
+		  else if ( PyInt_Check(value))
+		    a_word[i+start].w_float = (float) PyLong_AsLong( value );
+		  else
+		    a_word[i+start].w_float = 0.0;
+		}
+	      garray_redraw(a_garray);
+	      Py_RETURN_NONE;
+	    }
+	}
+      else
+	{
+	  if (DEBUG_WARNING)
+	    post("Warning: bad arguments: string int int list");
+	  Py_RETURN_NONE;
+	}
+    }
+}
+
+/// Open Pd array and remove elements
+static PyObject* pd_array_resize( PyObject *self __attribute__((unused)), PyObject *args )
+{
+  int size;
+  char *array_name;
+  if( !PyArg_Parse(args, "(si)", &array_name, &size ))
+    {
+      if (DEBUG_WARNING)
+	post("Warning: bad arguments: string int");
+      Py_RETURN_NONE;
+    }
+  else
+    {
+      if (size < 1) size = 1;
       t_word   *a_word;
       t_garray *a_garray;
       int       a_len;
@@ -484,24 +589,12 @@ static PyObject* pd_array_to_list( PyObject *self __attribute__((unused)), PyObj
 	    post("Warning: bad array size: %d", a_len);
 	  Py_RETURN_NONE;
 	}
-
-
-      validate_ssl(a_len, &start, &len);
-      post("%s : %d : %d %d",s->s_name, a_len, start, len);
-
-
-      PyObject *list = PyList_New( len );
-      int i;
-      for (i = 0; i < len; i++)
+      else
 	{
-	  PyObject *value = PyFloat_FromDouble( a_word[i+start].w_float );
-	  PyList_SetItem( list, i, value); // pass the value reference to the tuple
+	  garray_resize(a_garray, size);
+	  garray_redraw(a_garray);
+	  Py_RETURN_NONE;
 	}
-      return list;
-
-
-      /* Py_RETURN_NONE; */
-      /* return returnobj; */
     }
 }
 
@@ -510,10 +603,11 @@ static PyObject* pd_array_to_list( PyObject *self __attribute__((unused)), PyObj
 static PyMethodDef pd_methods[] = {
   { "post",           pd_post,           METH_VARARGS, "Print a string to the Pd console." },
   { "verbose",        pd_verbose,        METH_VARARGS, "Print a verbose messages." },
-  { "pdarray2list",   pd_array_to_list,  METH_VARARGS, "Open Pd array" },
+  { "array_get",      pd_array_get,      METH_VARARGS, "Open Pd array and get elements" },
+  { "array_set",      pd_array_set,      METH_VARARGS, "Open Pd array and set elements" },
+  { "array_resize",   pd_array_resize,   METH_VARARGS, "Resize Pd array" },
   { NULL,             NULL,              0,            NULL }
 };
-
 /****************************************************************/
 /// Initialization entry point for the Pd 'python' external.  This is
 /// automatically called by Pd after loading the dynamic module to initialize
@@ -523,7 +617,7 @@ void pdpython_setup(void)
   // specify "A_GIMME" as creation argument for both the creation
   // routine and the method (callback) for the "eval" message.
 
-  pdpython_class = class_new( gensym("pdpython"),              // t_symbol *name
+  pdpython_class = class_new( gensym("pdpython"),            // t_symbol *name
 			      (t_newmethod) pdpython_new,    // t_newmethod newmethod
 			      (t_method) pdpython_free,      // t_method freemethod
 			      sizeof(t_pdpython),            // size_t size

@@ -72,11 +72,21 @@ class HelpClass:
         return self.dict.keys()
 
     # pd arrays
-    def open_array(self, array_name, start, length):
-        """Open array."""
-        a = pd.pdarray2list(str(array_name), int(start), int(length))
+    def array_get(self, array_name, start, length):
+        """Open Pd array and make list."""
+        a = pd.array_get(str(array_name), int(start), int(length))
         return(a)
 
+    def array_set(self, array_name, x, y, z):
+        """Open Pd array and set elements."""
+        a = [x, y, z]
+        pd.array_set(a, str(array_name), 0, 3)
+        return
+
+    def array_resize(self, array_name, size):
+        """Resize Pd array."""
+        pd.array_resize(str(array_name), int(size))
+        return
 
     # disable/enable verbose messages
     def verbose(self, v):
