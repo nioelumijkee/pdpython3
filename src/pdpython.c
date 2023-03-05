@@ -96,11 +96,11 @@ static PyObject *t_atom_list_to_PyObject_list(int argc, t_atom *argv)
 // Set a Pd atom structure to a representation of an object of atomic concrete Python type.
 static void PyObject_to_atom(PyObject *value, t_atom *atom)
 {
-  if      (value == Py_True)      SETFLOAT(atom, 1.0);
-  else if (value == Py_False)     SETFLOAT(atom, 0.0);
-  else if (PyFloat_Check(value))  SETFLOAT(atom, (float) PyFloat_AsDouble(value));
-  else if (PyLong_Check(value))   SETFLOAT(atom, (float) PyLong_AsLong(value));
-  else if (PyInt_Check(value))    SETFLOAT(atom, (float) PyLong_AsLong(value));
+  if      (value == Py_True)      SETFLOAT(atom, (t_float) 1.0);
+  else if (value == Py_False)     SETFLOAT(atom, (t_float) 0.0);
+  else if (PyFloat_Check(value))  SETFLOAT(atom, (t_float) PyFloat_AsDouble(value));
+  else if (PyLong_Check(value))   SETFLOAT(atom, (t_float) PyLong_AsLong(value));
+  else if (PyInt_Check(value))    SETFLOAT(atom, (t_float) PyLong_AsLong(value));
   else if (PyString_Check(value)) SETSYMBOL(atom, gensym(PyString_AsString(value)));
   else                            SETSYMBOL(atom, gensym("error"));
 }
@@ -124,29 +124,34 @@ static void new_list_from_sequence(PyObject *seq, int *argc, t_atom **argv)
 	  PyObject_to_atom(elem, (*argv) + i);
 	}
     }
+  else
+    {
+      DEBUG_S(DEBUG_WARNING, "bad list.");
+    }
   *argc = (int) len;
 }
 
 // -------------------------------------------------------------------------- //
 // Emit a Python object as an outlet message.  Tuples generate multiple
 // messages and are handled separately.
-static void emit_outlet_message(PyObject *value, t_outlet *x_outlet)
+static void emit_outlet_message(PyObject *v, t_outlet *x_outlet)
 {
-  if      (value == Py_True)      outlet_float(x_outlet, 1.0);
-  else if (value == Py_False)     outlet_float(x_outlet, 0.0);
-  else if (PyFloat_Check(value))  outlet_float(x_outlet, (float) PyFloat_AsDouble(value));
-  else if (PyLong_Check(value))   outlet_float(x_outlet, (float) PyLong_AsLong(value));
-  else if (PyInt_Check(value))    outlet_float(x_outlet, (float) PyLong_AsLong(value));
-  else if (PyString_Check(value)) outlet_symbol(x_outlet, gensym(PyString_AsString(value)));
-  else if (PyList_Check(value))
+  if      (v == Py_True)      outlet_float(x_outlet, 1.0);
+  else if (v == Py_False)     outlet_float(x_outlet, 0.0);
+  else if (PyFloat_Check(v))  outlet_float(x_outlet, (float) PyFloat_AsDouble(v));
+  else if (PyLong_Check(v))   outlet_float(x_outlet, (float) PyLong_AsLong(v));
+  else if (PyInt_Check(v))    outlet_float(x_outlet, (float) PyLong_AsLong(v));
+  else if (PyString_Check(v)) outlet_symbol(x_outlet, gensym(PyString_AsString(v)));
+  else if (PyList_Check(v))
     {
       // Create an atom array representing a 1D Python list.
       t_atom *argv = NULL;
       int argc = 0;
-      new_list_from_sequence(value, &argc, &argv);
+      new_list_from_sequence(v, &argc, &argv);
       if (argc > 0)
 	{
-	  // Follow the Pd rules for interpreting lists.  If the first element is a symbol, then treat it as
+	  // Follow the Pd rules for interpreting lists.
+	  // If the first element is a symbol, then treat it as
 	  // the 'selector', otherwise treat all elements as data.
 	  if (argv[0].a_type == A_SYMBOL)
 	    {
@@ -165,10 +170,10 @@ static void emit_outlet_message(PyObject *value, t_outlet *x_outlet)
 // -------------------------------------------------------------------------- //
 // Call a method of the associated Python object based on the inlet value.
 // Message types are handled as follows:
-// bang               : obj.bang()            example: [bang]   calls obj.bang() 
-// float              : obj.float(number)     example: [1.0]    calls obj.float(1.0)
-// number list        : obj.list(a1, a2, ...) example: [1 2 3]  calls obj.list(1.0, 2.0, 3.0)
-// list with selector : obj.$selector(string) example: [goto 4] calls obj.goto(4.0)
+// bang       : obj.bang()            example: [bang]   calls obj.bang() 
+// float      : obj.float(number)     example: [1.0]    calls obj.float(1.0)
+// list (num) : obj.list(a1, a2, ...) example: [1 2 3]  calls obj.list(1.0, 2.0, 3.0)
+// list (sel) : obj.$selector(string) example: [goto 4] calls obj.goto(4.0)
 // more examples:
 // [ blah ]      is a list with a selector and null values, calls obj.blah()
 // [ goto home ] is a list with a selector and a symbol, calls obj.blah("home")
@@ -211,8 +216,7 @@ static void pdpython_eval(t_pdpython *x, t_symbol *selector, int argcount, t_ato
   if (args) Py_DECREF(args);
   if (value == NULL) 
     {
-	  DEBUG_SS(DEBUG_WARNING, 
-		   "Python call for selector %s failed.",
+	  DEBUG_SS(DEBUG_WARNING, "Python call for selector %s failed.",
 		   selector->s_name);
     }
   else 
@@ -273,7 +277,7 @@ static PyObject* pd_debug(PyObject *self __attribute__((unused)), PyObject *args
 }
 
 // -------------------------------------------------------------------------- //
-// Open Pd array
+// open pd array
 static int pd_open_array(t_symbol *s_arr,  // name
 			 t_word **w_arr,   // word
 			 t_garray **g_arr) // garray
@@ -340,9 +344,9 @@ static PyObject* list_to_pd_array(PyObject *self __attribute__((unused)), PyObje
 {
   char *array_name;
   PyObject  *in_list;
-  if(!PyArg_Parse(args, "(Os)", &in_list, &array_name))
+  if(!PyArg_Parse(args, "(sO)", &array_name, &in_list))
     {
-      DEBUG_S(DEBUG_ERROR, "bad arguments: list string");
+      DEBUG_S(DEBUG_ERROR, "bad arguments: string list");
       Py_RETURN_NONE;
     }
   else
@@ -370,13 +374,13 @@ static PyObject* list_to_pd_array(PyObject *self __attribute__((unused)), PyObje
 	      int i;
 	      for (i=0; i<a_len; i++)
 		{
-		  PyObject *value = PyList_GetItem(in_list, i);
-		  if     (value == Py_True)     w[i].w_float=1.0;
-		  else if(value == Py_False)    w[i].w_float=0.0;
-		  else if(PyFloat_Check(value)) w[i].w_float=(float)PyFloat_AsDouble(value);
-		  else if(PyLong_Check(value))  w[i].w_float=(float)PyLong_AsLong(value);
-		  else if(PyInt_Check(value))   w[i].w_float=(float)PyLong_AsLong(value);
-		  else                          w[i].w_float=0.0;
+		  PyObject *v = PyList_GetItem(in_list, i);
+		  if     (v == Py_True)     w[i].w_float=1.0;
+		  else if(v == Py_False)    w[i].w_float=0.0;
+		  else if(PyFloat_Check(v)) w[i].w_float=(float)PyFloat_AsDouble(v);
+		  else if(PyLong_Check(v))  w[i].w_float=(float)PyLong_AsLong(v);
+		  else if(PyInt_Check(v))   w[i].w_float=(float)PyLong_AsLong(v);
+		  else                      w[i].w_float=0.0;
 		}
 	      garray_redraw(g);
 	      Py_RETURN_NONE;
@@ -494,6 +498,114 @@ static PyObject* pd_value_set(PyObject *self __attribute__((unused)), PyObject *
 }
 
 // -------------------------------------------------------------------------- //
+// send bang to pd receive
+static PyObject* pd_send_bang(PyObject *self __attribute__((unused)), PyObject *args)
+{
+  char *name;
+  if(!PyArg_Parse(args, "(s)", &name))
+    {
+      DEBUG_S(DEBUG_ERROR, "bad arguments: string");
+      Py_RETURN_NONE;
+    }
+  else
+    {
+      t_symbol *s = gensym(name);
+      if (s->s_thing)
+	pd_bang(s->s_thing);
+      Py_RETURN_NONE;
+    }
+}
+
+// -------------------------------------------------------------------------- //
+// send float to pd receive
+static PyObject* pd_send_float(PyObject *self __attribute__((unused)), PyObject *args)
+{
+  char *name;
+  float f;
+  PyObject  *in_f;
+  if(!PyArg_Parse(args, "(sO)", &name, &in_f))
+    {
+      DEBUG_S(DEBUG_ERROR, "bad arguments: string float");
+      Py_RETURN_NONE;
+    }
+  else
+    {
+      if (PyFloat_Check(in_f) == 1)
+	{
+	  f = PyFloat_AsDouble(in_f);
+	}
+      else
+	{
+	  DEBUG_S(DEBUG_ERROR, "bad arguments: string float");
+	  Py_RETURN_NONE;
+	}
+      t_symbol *s = gensym(name);
+      if (s->s_thing)
+	pd_float(s->s_thing, f);
+      Py_RETURN_NONE;
+    }
+}
+
+// -------------------------------------------------------------------------- //
+// send symbol to pd receive
+static PyObject* pd_send_symbol(PyObject *self __attribute__((unused)), PyObject *args)
+{
+  char *name;
+  char *sym;
+  if(!PyArg_Parse(args, "(ss)", &name, &sym))
+    {
+      DEBUG_S(DEBUG_ERROR, "bad arguments: string string");
+      Py_RETURN_NONE;
+    }
+  else
+    {
+      t_symbol *s = gensym(name);
+      if (s->s_thing)
+	pd_symbol(s->s_thing, gensym(sym));
+      Py_RETURN_NONE;
+    }
+}
+
+// -------------------------------------------------------------------------- //
+// send list to pd receive
+static PyObject* pd_send_list(PyObject *self __attribute__((unused)), PyObject *args)
+{
+  char *name;
+  PyObject *in_list;
+  if(!PyArg_Parse(args, "(sO)", &name, &in_list))
+    {
+      DEBUG_S(DEBUG_ERROR, "bad arguments: string list");
+      Py_RETURN_NONE;
+    }
+  else
+    {
+      t_atom *argv = NULL;
+      int argc = 0;
+      new_list_from_sequence(in_list, &argc, &argv);
+      t_symbol *s = gensym(name);
+      if (s->s_thing)
+	{
+	  if (argc > 0)
+	    {
+	      // Follow the Pd rules for interpreting lists.
+	      // If the first element is a symbol, then treat it as
+	      // the 'selector', otherwise treat all elements as data.
+	      if (argv[0].a_type == A_SYMBOL)
+		{
+		  typedmess(s->s_thing, atom_getsymbol(&argv[0]), argc-1, argv+1);      
+		}
+	      else
+		{
+		  pd_list(s->s_thing, &s_list, argc, argv);
+		}
+	    }
+	}
+      if (argv) free (argv);
+      Py_RETURN_NONE;
+    }
+}
+
+// -------------------------------------------------------------------------- //
 // Define the pd module for C callbacks from Python to the Pd system.
 static PyMethodDef pd_methods[] = {
   { "post",             pd_post,           METH_VARARGS, "print pd console" },
@@ -504,6 +616,10 @@ static PyMethodDef pd_methods[] = {
   { "pd_array_resize",  pd_array_resize,   METH_VARARGS, "resize pdarray" },
   { "pd_value_get",     pd_value_get,      METH_VARARGS, "get pd value" },
   { "pd_value_set",     pd_value_set,      METH_VARARGS, "set pd value" },
+  { "pd_send_bang",     pd_send_bang,      METH_VARARGS, "send bang to pd receive" },
+  { "pd_send_float",    pd_send_float,     METH_VARARGS, "send float to pd receive" },
+  { "pd_send_symbol",   pd_send_symbol,    METH_VARARGS, "send symbol to pd receive" },
+  { "pd_send_list",     pd_send_list,      METH_VARARGS, "send list to pd receive" },
   { NULL,               NULL,              0,            NULL }
 };
 
