@@ -6,6 +6,7 @@ class HelpClass:
         self.dict = dict()
         return
 
+    # simply
     def bang(self):
         pd.post( "HelpClass object received bang.")
         return True
@@ -39,6 +40,7 @@ class HelpClass:
         pd.post( "Python HelpClass object received tuple message.")
         return ( ['element', 1], ['element', 2], ['element', 3],[ 'element',4 ] )
 
+    # dict
     def dict_set( self, key, value):
         self.dict[key] = value
         return
@@ -52,6 +54,7 @@ class HelpClass:
     def dict_keys( self ):
         return self.dict.keys()
 
+    # array
     def array_get(self, array_name):
         l = pd.pd_array_to_list(str(array_name))
         return(l)
@@ -75,18 +78,37 @@ class HelpClass:
         size = pd.pd_array_resize(str(name), int(size))
         return size
 
+    # value
+    def value_get(self, name):
+        f = pd.pd_value_get(str(name))
+        return f
+
+    def value_set(self, name, f):
+        pd.pd_value_set(str(name), float(f))
+        return
+
     # debug
     def debug_level(self, v):
         pd.debug_level(int(v))
         return
 
-    # tests
-    def MyTest1(self):
-        count = 0
-        for i in range(5000):
-            k = (i+1)*0.01
-            for j in range(1000):
-                l = (j+1)*0.01
-                count += l*k
-        # pd.post( "MyTest1")
-        return count
+    # test
+    def test(self):
+        a = 10
+        b = 20
+        c = test_add(a, b)
+        return c
+
+    def test2(self):
+        a = 10
+        b = 20
+        c = test_add(a, b)
+        e = test_mul(a, b)
+        a = test_add(c, e)
+        return a
+
+def test_add(a, b):
+    return a+b
+
+def test_mul(a, b):
+    return a*b

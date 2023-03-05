@@ -102,7 +102,7 @@ static void PyObject_to_atom(PyObject *value, t_atom *atom)
   else if (PyLong_Check(value))   SETFLOAT(atom, (float) PyLong_AsLong(value));
   else if (PyInt_Check(value))    SETFLOAT(atom, (float) PyLong_AsLong(value));
   else if (PyString_Check(value)) SETSYMBOL(atom, gensym(PyString_AsString(value)));
-  else                            SETSYMBOL(atom, gensym("errorxxx"));
+  else                            SETSYMBOL(atom, gensym("error"));
 }
 
 // -------------------------------------------------------------------------- //
@@ -181,7 +181,7 @@ static void pdpython_eval(t_pdpython *x, t_symbol *selector, int argcount, t_ato
 	    argcount, selector->s_name);
   PyObject *func = NULL;
   PyObject *args = NULL;
-  PyObject *value = NULL;    
+  PyObject *value = NULL;
   if (x->py_object == NULL)
     {
       DEBUG_S(DEBUG_WARNING, "message sent to uninitialized python object.");
@@ -444,6 +444,56 @@ static PyObject* pd_array_resize(PyObject *self __attribute__((unused)), PyObjec
 }
 
 // -------------------------------------------------------------------------- //
+// get pd value
+static PyObject* pd_value_get(PyObject *self __attribute__((unused)), PyObject *args)
+{
+  char *name;
+  if(!PyArg_Parse(args, "(s)", &name))
+    {
+      DEBUG_S(DEBUG_ERROR, "bad arguments: string");
+      Py_RETURN_NONE;
+    }
+  else
+    {
+      t_symbol *s = gensym(name);
+      t_float *x_floatstar;
+      x_floatstar = value_get(s);
+      return (Py_BuildValue("f", *x_floatstar));
+    }
+}
+
+// -------------------------------------------------------------------------- //
+// set pd value
+static PyObject* pd_value_set(PyObject *self __attribute__((unused)), PyObject *args)
+{
+  char *name;
+  float f;
+  PyObject  *in_f;
+  if(!PyArg_Parse(args, "(sO)", &name, &in_f))
+    {
+      DEBUG_S(DEBUG_ERROR, "bad arguments: string float");
+      Py_RETURN_NONE;
+    }
+  else
+    {
+      if (PyFloat_Check(in_f) == 1)
+	{
+	  f = PyFloat_AsDouble(in_f);
+	}
+      else
+	{
+	  DEBUG_S(DEBUG_ERROR, "bad arguments: string float");
+	  Py_RETURN_NONE;
+	}
+      t_symbol *s = gensym(name);
+      t_float *x_floatstar;
+      x_floatstar = value_get(s);
+      *x_floatstar = (t_float)f;
+      Py_RETURN_NONE;
+    }
+}
+
+// -------------------------------------------------------------------------- //
 // Define the pd module for C callbacks from Python to the Pd system.
 static PyMethodDef pd_methods[] = {
   { "post",             pd_post,           METH_VARARGS, "print pd console" },
@@ -452,6 +502,8 @@ static PyMethodDef pd_methods[] = {
   { "list_to_pd_array", list_to_pd_array,  METH_VARARGS, "list -> pdarray" },
   { "pd_array_size",    pd_array_size,     METH_VARARGS, "size pdarray" },
   { "pd_array_resize",  pd_array_resize,   METH_VARARGS, "resize pdarray" },
+  { "pd_value_get",     pd_value_get,      METH_VARARGS, "get pd value" },
+  { "pd_value_set",     pd_value_set,      METH_VARARGS, "set pd value" },
   { NULL,               NULL,              0,            NULL }
 };
 
