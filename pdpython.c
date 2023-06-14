@@ -1,3 +1,5 @@
+#define PY_SSIZE_T_CLEAN
+
 #include <Python.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,26 +17,39 @@ enum
 
 int debug_level = DEBUG_ERROR;
 
+/* #define DEBUG_S(L, S)				\ */
+/*   if (debug_level >= L)				\ */
+/*     {						\ */
+/*       post("pdpython debug:");			\ */
+/*       post(S);					\ */
+/*     } */
+
+/* #define DEBUG_SS(L, S1, S2)			\ */
+/*   if (debug_level >= L)				\ */
+/*     {						\ */
+/*       post("pdpython debug:");			\ */
+/*       post(S1, S2);				\ */
+/*     } */
+
+/* #define DEBUG_SSS(L, S1, S2, S3)			\ */
+/*   if (debug_level >= L)					\ */
+/*     {							\ */
+/*       post("pdpython debug:");				\ */
+/*       post(S1, S2, S3);					\ */
+/*     } */
+
+
 #define DEBUG_S(L, S)				\
-  if (debug_level >= L)				\
-    {						\
-      post("pdpython debug:");			\
-      post(S);					\
-    }
+  post("pdpython debug:");			\
+  post(S);					
 
 #define DEBUG_SS(L, S1, S2)			\
-  if (debug_level >= L)				\
-    {						\
-      post("pdpython debug:");			\
-      post(S1, S2);				\
-    }
+  post("pdpython debug:");			\
+  post(S1, S2);				
 
-#define DEBUG_SSS(L, S1, S2, S3)			\
-  if (debug_level >= L)					\
-    {							\
-      post("pdpython debug:");				\
-      post(S1, S2, S3);					\
-    }
+#define DEBUG_SSS(L, S1, S2, S3)		\
+  post("pdpython debug:");			\
+  post(S1, S2, S3);					
 
 // -------------------------------------------------------------------------- //
 // struct
@@ -57,7 +72,7 @@ static PyObject *t_atom_to_PyObject(t_atom *atom)
     case A_FLOAT:
       return PyFloat_FromDouble(atom_getfloat(atom));
     case A_SYMBOL:
-      return PyString_FromString(atom->a_w.w_symbol->s_name);
+      return PyUnicode_FromString(atom->a_w.w_symbol->s_name);
     case A_NULL:
       Py_RETURN_NONE;
     default:
@@ -100,9 +115,14 @@ static void PyObject_to_atom(PyObject *value, t_atom *atom)
   else if (value == Py_False)     SETFLOAT(atom, (t_float) 0.0);
   else if (PyFloat_Check(value))  SETFLOAT(atom, (t_float) PyFloat_AsDouble(value));
   else if (PyLong_Check(value))   SETFLOAT(atom, (t_float) PyLong_AsLong(value));
-  else if (PyInt_Check(value))    SETFLOAT(atom, (t_float) PyLong_AsLong(value));
-  else if (PyString_Check(value)) SETSYMBOL(atom, gensym(PyString_AsString(value)));
-  else                            SETSYMBOL(atom, gensym("error"));
+  /* else if (PyInt_Check(value))    SETFLOAT(atom, (t_float) PyLong_AsLong(value)); */
+  else if (PyUnicode_Check(value))
+    {
+      /* SETSYMBOL(atom, gensym(PyUnicode_AsString(value))); */
+      SETSYMBOL(atom, gensym((char *)PyUnicode_AsWideCharString(value, NULL)));
+    }
+  else
+    SETSYMBOL(atom, gensym("error"));
 }
 
 // -------------------------------------------------------------------------- //
@@ -136,12 +156,16 @@ static void new_list_from_sequence(PyObject *seq, int *argc, t_atom **argv)
 // messages and are handled separately.
 static void emit_outlet_message(PyObject *v, t_outlet *x_outlet)
 {
+  post("emit");
   if      (v == Py_True)      outlet_float(x_outlet, 1.0);
   else if (v == Py_False)     outlet_float(x_outlet, 0.0);
   else if (PyFloat_Check(v))  outlet_float(x_outlet, (float) PyFloat_AsDouble(v));
   else if (PyLong_Check(v))   outlet_float(x_outlet, (float) PyLong_AsLong(v));
-  else if (PyInt_Check(v))    outlet_float(x_outlet, (float) PyLong_AsLong(v));
-  else if (PyString_Check(v)) outlet_symbol(x_outlet, gensym(PyString_AsString(v)));
+  /* else if (PyInt_Check(v))    outlet_float(x_outlet, (float) PyLong_AsLong(v)); */
+  else if (PyUnicode_Check(v))
+    {
+      outlet_symbol(x_outlet, gensym((char *)PyUnicode_AsWideCharString(v, NULL)));
+    }
   else if (PyList_Check(v))
     {
       // Create an atom array representing a 1D Python list.
@@ -181,29 +205,32 @@ static void emit_outlet_message(PyObject *v, t_outlet *x_outlet)
 // symbol  : obj.symbol(string)  example: [ symbol ] calls obj.symbol("symbol")
 static void pdpython_eval(t_pdpython *x, t_symbol *selector, int argcount, t_atom *argvec)
 {
-  DEBUG_SSS(DEBUG_VERBOSE,
-	    "pdpython_eval called with %d args, selector %s",
+  /* DEBUG_SSS(DEBUG_VERBOSE, */
+	    post("pdpython_eval called with %d args, selector %s",
 	    argcount, selector->s_name);
   PyObject *func = NULL;
   PyObject *args = NULL;
   PyObject *value = NULL;
   if (x->py_object == NULL)
     {
-      DEBUG_S(DEBUG_WARNING, "message sent to uninitialized python object.");
+      /* DEBUG_S(DEBUG_WARNING, */
+      post( "message sent to uninitialized python object.");
       return;
     }
   func = PyObject_GetAttrString(x->py_object, selector->s_name);
   args = t_atom_list_to_PyObject_list(argcount, argvec);
   if (!func) 
     {
-      DEBUG_SS(DEBUG_WARNING, "no Python function found for selector %s.", 
+      /* DEBUG_SS(DEBUG_WARNING, */
+      post( "no Python function found for selector %s.", 
 	       selector->s_name);
     }
   else 
     {
       if (!PyCallable_Check(func)) 
 	{
-	  DEBUG_SS(DEBUG_WARNING, "Python attribute for selector %s is not callable.",
+	  /* DEBUG_SS(DEBUG_WARNING, */
+	  post( "Python attribute for selector %s is not callable.",
 		   selector->s_name);
 	}
       else 
@@ -216,7 +243,8 @@ static void pdpython_eval(t_pdpython *x, t_symbol *selector, int argcount, t_ato
   if (args) Py_DECREF(args);
   if (value == NULL) 
     {
-	  DEBUG_SS(DEBUG_WARNING, "Python call for selector %s failed.",
+      /* DEBUG_SS(DEBUG_WARNING, */
+      post( "Python call for selector %s failed.",
 		   selector->s_name);
     }
   else 
@@ -379,7 +407,7 @@ static PyObject* list_to_pd_array(PyObject *self __attribute__((unused)), PyObje
 		  else if(v == Py_False)    w[i].w_float=0.0;
 		  else if(PyFloat_Check(v)) w[i].w_float=(float)PyFloat_AsDouble(v);
 		  else if(PyLong_Check(v))  w[i].w_float=(float)PyLong_AsLong(v);
-		  else if(PyInt_Check(v))   w[i].w_float=(float)PyLong_AsLong(v);
+		  /* else if(PyInt_Check(v))   w[i].w_float=(float)PyLong_AsLong(v); */
 		  else                      w[i].w_float=0.0;
 		}
 	      garray_redraw(g);
@@ -624,6 +652,29 @@ static PyMethodDef pd_methods[] = {
 };
 
 // -------------------------------------------------------------------------- //
+// struct modul
+static struct PyModuleDef pd_module = 
+  {
+    PyModuleDef_HEAD_INIT,
+    "pd",                                   // name
+    "python for pd",     // desc or NULL 
+    -1,                                        // size struct for everyone
+    pd_methods,                             // methods table
+    NULL,                                      // m_slots
+    NULL,                                      // m_traverse
+    NULL,                                      // m_clear
+    NULL                                       // m_free
+  };
+
+
+// -------------------------------------------------------------------------- //
+// init
+PyMODINIT_FUNC PyInit_pd()
+{
+  return PyModule_Create(&pd_module);
+}
+
+// -------------------------------------------------------------------------- //
 // Create an instance of a Pd 'python' object.
 // The creation arguments are treated as follows:
 //    module_name function_name [arg]*
@@ -647,9 +698,18 @@ static void *pdpython_new(t_symbol *selector, int argcount, t_atom *argvec)
       // present.  This will help the module import to find Python modules
       // located in the same folder as the patch.
       t_symbol *canvas_path = canvas_getcurrentdir();
-      PyObject* modulePath = PyString_FromString(canvas_path->s_name);
+
+      /* post("canvas_path: %s", canvas_path->s_name); */
+      /* PyRun_SimpleString("import sys"); */
+      /* char buf[1024]; */
+      /* sprintf(buf, "sys.path.append(\"%s\")", canvas_path->s_name); */
+      /* /\* PyRun_SimpleString("sys.path.append(\"%s\")", canvas_path->s_name); *\/ */
+      /* PyRun_SimpleString(buf); */
+
+      /* PyObject* modulePath = PyString_FromString(canvas_path->s_name); */
+      PyObject* modulePath = PyUnicode_FromString(canvas_path->s_name);
       PyObject* sysPath    = PySys_GetObject((char*) "path"); // borrowed reference
-      if (!PySequence_Contains(sysPath, modulePath)) 
+      if (!PySequence_Contains(sysPath, modulePath))
 	{
 	  DEBUG_SS(DEBUG_VERBOSE,
 		   "Appending current canvas path to Python load path: %s",
@@ -686,9 +746,11 @@ static void *pdpython_new(t_symbol *selector, int argcount, t_atom *argvec)
 		}
 	      else
 		{
+		  post("--- init ---");
 		  PyObject *args = t_atom_list_to_PyObject_list(argcount-2, argvec+2);
 		  x->py_object   = PyObject_CallObject(func, args);
 		  Py_DECREF(args);
+		  post("--- init --- END");
 		}
 	      Py_DECREF(func);
 	    }
@@ -727,12 +789,25 @@ void pdpython_setup(void)
 			      0,                             // int flags
 			      A_GIMME, 0);                   // t_atomtype arg1, ...
   class_addanything(pdpython_class, (t_method) pdpython_eval);
-  Py_SetProgramName("pd");
+
+
+  if (PyImport_AppendInittab("pd", PyInit_pd) == -1) {
+    fprintf(stderr, "Error: could not extend in-built modules table\n");
+    /* exit(1); */
+  }
+
+  Py_SetProgramName((wchar_t *)"puredata");
   Py_Initialize();
-  static char *arg0 = NULL;
-  PySys_SetArgv(0, &arg0);
-  if (Py_InitModule("pd", pd_methods) == NULL)
-    {
-      DEBUG_S(DEBUG_ERROR, "unable to create the pdgui module.");
-    }
+
+
+  /* static char *arg0 = NULL; */
+  /* PySys_SetArgv(0, &arg0); */
+
+  PySys_SetArgv(0, NULL);
+  /* PyInit_pd(); */
+
+  /* if (Py_InitModule("pd", pd_methods) == NULL) */
+  /*   { */
+  /*     DEBUG_S(DEBUG_ERROR, "unable to create the pd module."); */
+  /*   } */
 }

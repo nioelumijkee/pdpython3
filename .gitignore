@@ -43,3 +43,4 @@ install-Linux
 .DS_Store
 *~
 TODO.md
+__pycache__/

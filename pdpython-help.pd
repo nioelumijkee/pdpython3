@@ -1,4 +1,4 @@
-#N canvas 314 15 1099 713 10;
+#N canvas 529 15 1099 713 10;
 #X obj 13 47 bng 15 250 50 0 empty empty empty 17 7 0 10 #fcfcfc #000000 #000000;
 #X obj 50 318 metro 1000;
 #X obj 60 288 bng 15 250 50 0 empty empty empty 17 7 0 10 #fcfcfc #000000 #000000;
@@ -73,14 +73,14 @@
 #X msg 352 453 dict_set name Hilbert;
 #X text 365 423 Dict;
 #N canvas 0 50 450 250 (subpatch) 0;
-#X array array1 123 float 2;
-#X coords 0 1 123 -1 100 40 1 0 0;
+#X array array1 31 float 2;
+#X coords 0 1 31 -1 100 40 1 0 0;
 #X restore 507 269 graph;
 #X msg 155 243 array_get array1;
 #X obj 166 373 s msg-to-python;
 #N canvas 0 50 450 250 (subpatch) 0;
-#X array array2 126 float 2;
-#X coords 0 1 126 -1 100 40 1 0 0;
+#X array array2 40 float 2;
+#X coords 0 1 40 -1 100 40 1 0 0;
 #X restore 506 329 graph;
 #X msg 170 267 array_get array2;
 #X msg 186 290 array_set array1 0 0.1 0.2 0.3 0.4, f 18;
@@ -95,8 +95,8 @@
 #X floatatom 358 337 5 0 0 0 - - - 0;
 #X msg 356 357 array_resize array2 \$1;
 #X obj 629 650 s msg-to-python;
-#X msg 629 603 test;
-#X msg 666 623 test2;
+#X msg 629 569 test;
+#X msg 629 589 test2;
 #X floatatom 950 516 5 0 0 0 - - - 0;
 #X obj 950 537 s aaa;
 #X obj 764 557 s msg-to-python;
@@ -123,7 +123,8 @@
 #X msg 839 270 send_list bbb 1 2 3;
 #X msg 850 294 send_list bbb A 1 2 3;
 #X text 875 48 Send:;
-#X text 659 579 Test:;
+#X text 640 545 Test:;
+#X msg 629 609 test_for;
 #X connect 0 0 15 0;
 #X connect 1 0 16 0;
 #X connect 2 0 1 0;
@@ -158,7 +159,6 @@
 #X connect 50 0 57 0;
 #X connect 57 0 56 0;
 #X connect 58 0 17 0;
-#X connect 60 0 64 0;
 #X connect 64 0 59 0;
 #X connect 67 0 65 0;
 #X connect 68 0 65 0;
@@ -191,3 +191,4 @@
 #X connect 113 0 111 0;
 #X connect 115 0 114 0;
 #X connect 116 0 114 0;
+#X connect 119 0 89 0;

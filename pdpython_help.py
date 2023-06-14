@@ -131,6 +131,12 @@ class HelpClass:
         a = test_add(c, e)
         return a
 
+    def test_for(self):
+        k=0
+        for i in range(100):
+            k += 1
+        return k
+
 def test_add(a, b):
     return a+b
 
