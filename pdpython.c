@@ -746,11 +746,9 @@ static void *pdpython_new(t_symbol *selector, int argcount, t_atom *argvec)
 		}
 	      else
 		{
-		  post("--- init ---");
 		  PyObject *args = t_atom_list_to_PyObject_list(argcount-2, argvec+2);
 		  x->py_object   = PyObject_CallObject(func, args);
 		  Py_DECREF(args);
-		  post("--- init --- END");
 		}
 	      Py_DECREF(func);
 	    }
