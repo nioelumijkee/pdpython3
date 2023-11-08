@@ -52,7 +52,7 @@ class HelpClass:
             return
 
     def dict_keys(self):
-        return self.dict.keys()
+        return list(self.dict.keys())
 
     # array
     def array_get(self, array_name):
@@ -113,7 +113,7 @@ class HelpClass:
 
     # debug
     def debug_level(self, v):
-        pd.debug_level(int(v))
+        pd.debug(int(v))
         return
 
     # test

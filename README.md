@@ -1,5 +1,5 @@
-pdpython
-========
+pdpython3
+=========
 
 This repository contains an 'external' (plugin) for [Pure
 Data](http://puredata.info) to allow embedding Python programs within Pd program

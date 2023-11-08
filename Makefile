@@ -1,5 +1,5 @@
 ################################################################################
-lib.name = pdpython
+lib.name = pdpython3
 PYTHON_CFLAGS  := $(shell python3-config  --cflags)
 PYTHON_LDFLAGS := $(shell python3-config  --ldflags)
 PYTHON_VER := $(shell python3 --version |\
@@ -7,7 +7,7 @@ PYTHON_VER := $(shell python3 --version |\
 	 awk -F'.' '{ print "python" $$1 "." $$2 }')
 cflags = $(PYTHON_CFLAGS) -shared
 ldlibs = $(PYTHON_LDFLAGS) -l$(PYTHON_VER)
-class.sources = pdpython.c
+class.sources = pdpython3.c
 sources = 
 datafiles =
 
